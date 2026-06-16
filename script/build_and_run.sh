@@ -4,6 +4,8 @@ set -euo pipefail
 MODE="${1:-run}"
 APP_NAME="AWSBar"
 BUNDLE_ID="dev.codex.AWSBar"
+APP_VERSION="0.1.0"
+BUILD_VERSION="1"
 MIN_SYSTEM_VERSION="14.0"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -43,10 +45,16 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$BUNDLE_ID</string>
   <key>CFBundleIconFile</key>
   <string>AWSBar</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
   <key>CFBundleName</key>
   <string>$APP_NAME</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>$APP_VERSION</string>
+  <key>CFBundleVersion</key>
+  <string>$BUILD_VERSION</string>
   <key>LSMinimumSystemVersion</key>
   <string>$MIN_SYSTEM_VERSION</string>
   <key>LSUIElement</key>
@@ -57,11 +65,15 @@ cat >"$INFO_PLIST" <<PLIST
 </plist>
 PLIST
 
+codesign --force --sign - "$APP_BUNDLE"
+
 open_app() {
   /usr/bin/open -n "$APP_BUNDLE"
 }
 
 case "$MODE" in
+  --build-only|build-only)
+    ;;
   run)
     open_app
     ;;
@@ -82,7 +94,7 @@ case "$MODE" in
     pgrep -x "$APP_NAME" >/dev/null
     ;;
   *)
-    echo "usage: $0 [run|--debug|--logs|--telemetry|--verify]" >&2
+    echo "usage: $0 [run|--build-only|--debug|--logs|--telemetry|--verify]" >&2
     exit 2
     ;;
 esac
