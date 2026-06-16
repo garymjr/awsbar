@@ -91,6 +91,28 @@ struct AWSMenuView: View {
             Label("Refresh Profiles", systemImage: "arrow.clockwise")
         }
 
+        Menu {
+            ForEach(AWSProfileStore.credentialRefreshIntervalMinuteOptions, id: \.self) { minutes in
+                Button {
+                    store.setCredentialRefreshIntervalMinutes(minutes)
+                } label: {
+                    if minutes == store.credentialRefreshIntervalMinutes {
+                        Label(
+                            AWSProfileStore.credentialRefreshIntervalTitle(for: minutes),
+                            systemImage: "checkmark"
+                        )
+                    } else {
+                        Text(AWSProfileStore.credentialRefreshIntervalTitle(for: minutes))
+                    }
+                }
+            }
+        } label: {
+            Label(
+                "Refresh Every \(AWSProfileStore.credentialRefreshIntervalTitle(for: store.credentialRefreshIntervalMinutes))",
+                systemImage: "timer"
+            )
+        }
+
         Button {
             openAWSConfig()
         } label: {

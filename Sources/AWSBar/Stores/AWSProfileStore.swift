@@ -5,15 +5,20 @@ import Foundation
 final class AWSProfileStore: ObservableObject {
     @Published private(set) var profiles: [AWSProfile] = []
     @Published private(set) var selectedProfileCredentialStatus: AWSCredentialStatus = .unchecked
+    @Published private(set) var credentialRefreshIntervalMinutes: Int
     @Published var selectedProfileName: String?
     @Published var statusMessage: String = "Ready"
 
-    private static let credentialRefreshNanoseconds: UInt64 = 300 * 1_000_000_000
+    static let credentialRefreshIntervalMinuteOptions = [1, 5, 15, 30, 60]
+
+    private static let credentialRefreshIntervalDefaultsKey = "credentialRefreshIntervalMinutes"
+    private static let defaultCredentialRefreshIntervalMinutes = 5
     private static let postLoginRefreshNanoseconds: UInt64 = 2 * 1_000_000_000
     private static let postLoginRefreshAttempts = 60
 
     private let configService: AWSConfigService
     private let commandService: AWSCommandService
+    private let userDefaults: UserDefaults
     private var credentialCheckTask: Task<Void, Never>?
     private var credentialPollingTask: Task<Void, Never>?
     private var postLoginCredentialWatchTask: Task<Void, Never>?
@@ -32,10 +37,15 @@ final class AWSProfileStore: ObservableObject {
 
     init(
         configService: AWSConfigService = AWSConfigService(),
-        commandService: AWSCommandService = AWSCommandService()
+        commandService: AWSCommandService = AWSCommandService(),
+        userDefaults: UserDefaults = .standard
     ) {
         self.configService = configService
         self.commandService = commandService
+        self.userDefaults = userDefaults
+        credentialRefreshIntervalMinutes = Self.normalizedCredentialRefreshIntervalMinutes(
+            userDefaults.integer(forKey: Self.credentialRefreshIntervalDefaultsKey)
+        )
         refresh()
         startCredentialPolling()
     }
@@ -134,6 +144,22 @@ final class AWSProfileStore: ObservableObject {
         }
     }
 
+    func setCredentialRefreshIntervalMinutes(_ minutes: Int) {
+        let normalizedMinutes = Self.normalizedCredentialRefreshIntervalMinutes(minutes)
+        guard credentialRefreshIntervalMinutes != normalizedMinutes else {
+            return
+        }
+
+        credentialRefreshIntervalMinutes = normalizedMinutes
+        userDefaults.set(normalizedMinutes, forKey: Self.credentialRefreshIntervalDefaultsKey)
+        startCredentialPolling()
+        statusMessage = "Refresh every \(Self.credentialRefreshIntervalTitle(for: normalizedMinutes))"
+    }
+
+    static func credentialRefreshIntervalTitle(for minutes: Int) -> String {
+        minutes == 1 ? "1 minute" : "\(minutes) minutes"
+    }
+
     private func startPostLoginCredentialWatch(for profile: AWSProfile) {
         postLoginCredentialWatchTask?.cancel()
         postLoginCredentialWatchTask = Task { [commandService] in
@@ -165,15 +191,24 @@ final class AWSProfileStore: ObservableObject {
         credentialPollingTask?.cancel()
         credentialPollingTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: Self.credentialRefreshNanoseconds)
+                guard let self else {
+                    return
+                }
+
+                let refreshNanoseconds = UInt64(credentialRefreshIntervalMinutes) * 60 * 1_000_000_000
+                try? await Task.sleep(nanoseconds: refreshNanoseconds)
 
                 if Task.isCancelled {
                     return
                 }
 
-                self?.checkSelectedProfileCredentialStatus()
+                checkSelectedProfileCredentialStatus()
             }
         }
+    }
+
+    private static func normalizedCredentialRefreshIntervalMinutes(_ minutes: Int) -> Int {
+        credentialRefreshIntervalMinuteOptions.contains(minutes) ? minutes : defaultCredentialRefreshIntervalMinutes
     }
 
     private func checkSelectedProfileCredentialStatus() {
