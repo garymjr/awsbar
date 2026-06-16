@@ -13,7 +13,7 @@ struct AWSBarApp: App {
     @StateObject private var profileStore = AWSProfileStore()
 
     var body: some Scene {
-        MenuBarExtra("AWS", systemImage: "cloud") {
+        MenuBarExtra("AWS", systemImage: profileStore.menuBarSystemImage) {
             AWSMenuView(store: profileStore)
         }
         .menuBarExtraStyle(.menu)

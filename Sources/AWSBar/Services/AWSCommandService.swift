@@ -65,6 +65,22 @@ struct AWSCommandService {
         _ = try runAWS(arguments: ["sso", "login", "--profile", profile.name], waitsForExit: false)
     }
 
+    func credentialStatus(for profile: AWSProfile) -> AWSCredentialStatus {
+        do {
+            let output = try runAWS(arguments: exportCredentialArguments(for: profile)).output
+            _ = try decodeCredentials(from: output)
+            return .valid
+        } catch CommandError.awsCommandFailed(let message) {
+            if isSSOExpiredMessage(message) {
+                return .expired
+            }
+
+            return .unavailable(message.isEmpty ? "Could not check AWS credentials" : message)
+        } catch {
+            return .unavailable(error.localizedDescription)
+        }
+    }
+
     func openAccessPortal(for profile: AWSProfile) throws {
         guard
             let ssoStartURL = profile.ssoStartURL,
@@ -119,14 +135,7 @@ struct AWSCommandService {
     }
 
     private func credentials(for profile: AWSProfile) throws -> ProcessCredentials {
-        let exportArguments = [
-            "configure",
-            "export-credentials",
-            "--profile",
-            profile.name,
-            "--format",
-            "process"
-        ]
+        let exportArguments = exportCredentialArguments(for: profile)
 
         do {
             return try decodeCredentials(from: runAWS(arguments: exportArguments).output)
@@ -134,6 +143,28 @@ struct AWSCommandService {
             _ = try runAWS(arguments: ["sso", "login", "--profile", profile.name])
             return try decodeCredentials(from: runAWS(arguments: exportArguments).output)
         }
+    }
+
+    private func exportCredentialArguments(for profile: AWSProfile) -> [String] {
+        [
+            "configure",
+            "export-credentials",
+            "--profile",
+            profile.name,
+            "--format",
+            "process"
+        ]
+    }
+
+    private func isSSOExpiredMessage(_ message: String) -> Bool {
+        let normalizedMessage = message.lowercased()
+
+        return normalizedMessage.contains("sso") &&
+            (
+                normalizedMessage.contains("login") ||
+                normalizedMessage.contains("expired") ||
+                normalizedMessage.contains("token")
+            )
     }
 
     private func signinToken(for credentials: ProcessCredentials) async throws -> String {
