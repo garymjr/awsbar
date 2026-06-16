@@ -1,11 +1,13 @@
 import AppKit
 import Foundation
+import ServiceManagement
 
 @MainActor
 final class AWSProfileStore: ObservableObject {
     @Published private(set) var profiles: [AWSProfile] = []
     @Published private(set) var selectedProfileCredentialStatus: AWSCredentialStatus = .unchecked
     @Published private(set) var credentialRefreshIntervalMinutes: Int
+    @Published private(set) var launchesAtLogin: Bool
     @Published var selectedProfileName: String?
     @Published var statusMessage: String = "Ready"
 
@@ -46,6 +48,7 @@ final class AWSProfileStore: ObservableObject {
         credentialRefreshIntervalMinutes = Self.normalizedCredentialRefreshIntervalMinutes(
             userDefaults.integer(forKey: Self.credentialRefreshIntervalDefaultsKey)
         )
+        launchesAtLogin = Self.currentLaunchesAtLogin()
         refresh()
         startCredentialPolling()
     }
@@ -156,6 +159,23 @@ final class AWSProfileStore: ObservableObject {
         statusMessage = "Refresh every \(Self.credentialRefreshIntervalTitle(for: normalizedMinutes))"
     }
 
+    func setLaunchesAtLogin(_ shouldLaunchAtLogin: Bool) {
+        do {
+            if shouldLaunchAtLogin {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+
+            launchesAtLogin = Self.currentLaunchesAtLogin()
+            statusMessage = launchesAtLogin ? "Launch at login enabled" : "Launch at login disabled"
+        } catch {
+            launchesAtLogin = Self.currentLaunchesAtLogin()
+            statusMessage = error.localizedDescription
+            showError(error.localizedDescription, title: "Could not update launch at login")
+        }
+    }
+
     static func credentialRefreshIntervalTitle(for minutes: Int) -> String {
         minutes == 1 ? "1 minute" : "\(minutes) minutes"
     }
@@ -209,6 +229,10 @@ final class AWSProfileStore: ObservableObject {
 
     private static func normalizedCredentialRefreshIntervalMinutes(_ minutes: Int) -> Int {
         credentialRefreshIntervalMinuteOptions.contains(minutes) ? minutes : defaultCredentialRefreshIntervalMinutes
+    }
+
+    private static func currentLaunchesAtLogin() -> Bool {
+        SMAppService.mainApp.status == .enabled
     }
 
     private func checkSelectedProfileCredentialStatus() {

@@ -114,6 +114,16 @@ struct AWSMenuView: View {
         }
 
         Button {
+            store.setLaunchesAtLogin(!store.launchesAtLogin)
+        } label: {
+            if store.launchesAtLogin {
+                Label("Launch at Login", systemImage: "checkmark")
+            } else {
+                Text("Launch at Login")
+            }
+        }
+
+        Button {
             openAWSConfig()
         } label: {
             Label("Open AWS Config", systemImage: "doc.text")
