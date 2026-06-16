@@ -13,8 +13,10 @@ MODULE_CACHE_DIR="$BUILD_DIR/module-cache"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"
+APP_RESOURCES="$APP_CONTENTS/Resources"
 APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
+APP_ICON="$ROOT_DIR/Assets/AWSBar.icns"
 
 export CLANG_MODULE_CACHE_PATH="$MODULE_CACHE_DIR"
 mkdir -p "$MODULE_CACHE_DIR"
@@ -25,9 +27,10 @@ swift build --disable-sandbox --scratch-path "$BUILD_DIR"
 BUILD_BINARY="$(swift build --disable-sandbox --scratch-path "$BUILD_DIR" --show-bin-path)/$APP_NAME"
 
 rm -rf "$APP_BUNDLE"
-mkdir -p "$APP_MACOS"
+mkdir -p "$APP_MACOS" "$APP_RESOURCES"
 cp "$BUILD_BINARY" "$APP_BINARY"
 chmod +x "$APP_BINARY"
+cp "$APP_ICON" "$APP_RESOURCES/AWSBar.icns"
 
 cat >"$INFO_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -38,6 +41,8 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$APP_NAME</string>
   <key>CFBundleIdentifier</key>
   <string>$BUNDLE_ID</string>
+  <key>CFBundleIconFile</key>
+  <string>AWSBar</string>
   <key>CFBundleName</key>
   <string>$APP_NAME</string>
   <key>CFBundlePackageType</key>
