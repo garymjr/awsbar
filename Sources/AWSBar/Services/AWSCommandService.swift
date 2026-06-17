@@ -5,10 +5,13 @@ struct AWSCommandService {
     enum CommandError: LocalizedError {
         case awsCommandFailed(String)
         case consoleTokenRequestFailed(String)
+        case credentialsUnavailable(String)
         case invalidConsoleURL
         case invalidCredentialOutput
         case missingAccessPortalURL
         case processLaunchFailed
+        case processTimedOut(String)
+        case unsupportedAccessPortalURL
 
         var errorDescription: String? {
             switch self {
@@ -16,6 +19,8 @@ struct AWSCommandService {
                 return message.isEmpty ? "AWS CLI command failed" : message
             case .consoleTokenRequestFailed(let message):
                 return message.isEmpty ? "Could not create console sign-in URL" : message
+            case .credentialsUnavailable(let message):
+                return message.isEmpty ? "AWS credentials are unavailable. Run SSO Login and try again." : message
             case .invalidConsoleURL:
                 return "Could not build AWS console URL"
             case .invalidCredentialOutput:
@@ -24,6 +29,10 @@ struct AWSCommandService {
                 return "Profile has no SSO access portal URL"
             case .processLaunchFailed:
                 return "Could not start aws sso login"
+            case .processTimedOut(let command):
+                return "\(command) timed out"
+            case .unsupportedAccessPortalURL:
+                return "Profile SSO access portal URL must use https"
             }
         }
     }
@@ -49,6 +58,13 @@ struct AWSCommandService {
         let argumentPrefix: [String]
     }
 
+    private enum Timeout {
+        static let credentialCheck: TimeInterval = 10
+        static let consoleCredentialExport: TimeInterval = 20
+        static let awsCommand: TimeInterval = 30
+        static let federationRequest: TimeInterval = 15
+    }
+
     func copyExportCommand(for profile: AWSProfile) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
@@ -67,7 +83,10 @@ struct AWSCommandService {
 
     func credentialStatus(for profile: AWSProfile) -> AWSCredentialStatus {
         do {
-            let output = try runAWS(arguments: exportCredentialArguments(for: profile)).output
+            let output = try runAWS(
+                arguments: exportCredentialArguments(for: profile),
+                timeout: Timeout.credentialCheck
+            ).output
             _ = try decodeCredentials(from: output)
             return .valid
         } catch CommandError.awsCommandFailed(let message) {
@@ -87,6 +106,10 @@ struct AWSCommandService {
             let url = URL(string: ssoStartURL)
         else {
             throw CommandError.missingAccessPortalURL
+        }
+
+        guard url.scheme?.lowercased() == "https" else {
+            throw CommandError.unsupportedAccessPortalURL
         }
 
         _ = NSWorkspace.shared.open(url)
@@ -138,10 +161,18 @@ struct AWSCommandService {
         let exportArguments = exportCredentialArguments(for: profile)
 
         do {
-            return try decodeCredentials(from: runAWS(arguments: exportArguments).output)
+            return try decodeCredentials(
+                from: runAWS(
+                    arguments: exportArguments,
+                    timeout: Timeout.consoleCredentialExport
+                ).output
+            )
+        } catch CommandError.awsCommandFailed(let message) {
+            throw CommandError.credentialsUnavailable(
+                message.isEmpty ? "AWS credentials are unavailable. Run SSO Login and try again." : message
+            )
         } catch {
-            _ = try runAWS(arguments: ["sso", "login", "--profile", profile.name])
-            return try decodeCredentials(from: runAWS(arguments: exportArguments).output)
+            throw error
         }
     }
 
@@ -184,7 +215,12 @@ struct AWSCommandService {
             ("Session", sessionJSON)
         ])
 
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let request = URLRequest(
+            url: url,
+            cachePolicy: .reloadIgnoringLocalAndRemoteCacheData,
+            timeoutInterval: Timeout.federationRequest
+        )
+        let (data, response) = try await URLSession.shared.data(for: request)
         let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
 
         guard 200..<300 ~= statusCode else {
@@ -196,7 +232,15 @@ struct AWSCommandService {
 
     private func consoleDestination(for profile: AWSProfile) -> URL {
         let region = profile.region ?? "us-east-1"
-        return URL(string: "https://console.aws.amazon.com/console/home?region=\(region)")!
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "console.aws.amazon.com"
+        components.path = "/console/home"
+        components.queryItems = [
+            URLQueryItem(name: "region", value: region)
+        ]
+
+        return components.url!
     }
 
     private func decodeCredentials(from data: Data) throws -> ProcessCredentials {
@@ -209,7 +253,8 @@ struct AWSCommandService {
 
     private func runAWS(
         arguments: [String],
-        waitsForExit: Bool = true
+        waitsForExit: Bool = true,
+        timeout: TimeInterval = Timeout.awsCommand
     ) throws -> (output: Data, errorOutput: Data) {
         let process = Process()
         let outputPipe = Pipe()
@@ -222,6 +267,13 @@ struct AWSCommandService {
         process.standardOutput = outputPipe
         process.standardError = errorPipe
 
+        let semaphore = DispatchSemaphore(value: 0)
+        if waitsForExit {
+            process.terminationHandler = { _ in
+                semaphore.signal()
+            }
+        }
+
         do {
             try process.run()
         } catch {
@@ -232,7 +284,12 @@ struct AWSCommandService {
             return (Data(), Data())
         }
 
-        process.waitUntilExit()
+        let deadline = DispatchTime.now() + timeout
+        guard semaphore.wait(timeout: deadline) == .success else {
+            process.terminate()
+            process.waitUntilExit()
+            throw CommandError.processTimedOut(commandDescription(for: arguments))
+        }
 
         let output = outputPipe.fileHandleForReading.readDataToEndOfFile()
         let errorOutput = errorPipe.fileHandleForReading.readDataToEndOfFile()
@@ -285,6 +342,10 @@ struct AWSCommandService {
     private func errorMessage(from data: Data) -> String {
         String(data: data, encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    private func commandDescription(for arguments: [String]) -> String {
+        "aws \(arguments.prefix(2).joined(separator: " "))"
     }
 
     private func responseMessage(from data: Data) -> String {

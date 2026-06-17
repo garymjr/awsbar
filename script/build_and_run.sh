@@ -23,16 +23,20 @@ APP_ICON="$ROOT_DIR/Assets/AWSBar.icns"
 export CLANG_MODULE_CACHE_PATH="$MODULE_CACHE_DIR"
 mkdir -p "$MODULE_CACHE_DIR"
 
-pkill -x "$APP_NAME" >/dev/null 2>&1 || true
+stop_running_app() {
+  pkill -x "$APP_NAME" >/dev/null 2>&1 || true
+}
 
 swift build --disable-sandbox --scratch-path "$BUILD_DIR"
 BUILD_BINARY="$(swift build --disable-sandbox --scratch-path "$BUILD_DIR" --show-bin-path)/$APP_NAME"
 
-rm -rf "$APP_BUNDLE"
+if [[ -d "$APP_BUNDLE" ]]; then
+  trash "$APP_BUNDLE" 2>/dev/null || rm -rf "$APP_BUNDLE"
+fi
 mkdir -p "$APP_MACOS" "$APP_RESOURCES"
-cp "$BUILD_BINARY" "$APP_BINARY"
+ditto "$BUILD_BINARY" "$APP_BINARY"
 chmod +x "$APP_BINARY"
-cp "$APP_ICON" "$APP_RESOURCES/AWSBar.icns"
+ditto "$APP_ICON" "$APP_RESOURCES/AWSBar.icns"
 
 cat >"$INFO_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -75,20 +79,25 @@ case "$MODE" in
   --build-only|build-only)
     ;;
   run)
+    stop_running_app
     open_app
     ;;
   --debug|debug)
+    stop_running_app
     lldb -- "$APP_BINARY"
     ;;
   --logs|logs)
+    stop_running_app
     open_app
     /usr/bin/log stream --info --style compact --predicate "process == \"$APP_NAME\""
     ;;
   --telemetry|telemetry)
+    stop_running_app
     open_app
     /usr/bin/log stream --info --style compact --predicate "subsystem == \"$BUNDLE_ID\""
     ;;
   --verify|verify)
+    stop_running_app
     open_app
     sleep 1
     pgrep -x "$APP_NAME" >/dev/null

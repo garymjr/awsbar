@@ -24,10 +24,16 @@ struct AWSMenuView: View {
 
             Text(currentAccountDetail(for: profile))
                 .disabled(true)
+
+            Text(store.credentialStatusTitle)
+                .disabled(true)
         } else {
             Text("None configured")
                 .disabled(true)
         }
+
+        Text(MenuTitle.shortened(store.statusMessage))
+            .disabled(true)
 
         Divider()
 
@@ -58,7 +64,7 @@ struct AWSMenuView: View {
                     Button {
                         store.select(profile)
                     } label: {
-                        Label("Use Profile", systemImage: "checkmark")
+                        Label("Set Current", systemImage: "checkmark")
                     }
 
                     Divider()

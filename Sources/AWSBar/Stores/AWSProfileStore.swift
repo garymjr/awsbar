@@ -37,6 +37,19 @@ final class AWSProfileStore: ObservableObject {
         selectedProfileCredentialStatus == .expired ? "icloud.slash" : "cloud"
     }
 
+    var credentialStatusTitle: String {
+        switch selectedProfileCredentialStatus {
+        case .unchecked:
+            return "Credentials not checked"
+        case .valid:
+            return "Credentials valid"
+        case .expired:
+            return "Credentials expired"
+        case .unavailable:
+            return "Credentials unavailable"
+        }
+    }
+
     init(
         configService: AWSConfigService = AWSConfigService(),
         commandService: AWSCommandService = AWSCommandService(),
@@ -88,8 +101,7 @@ final class AWSProfileStore: ObservableObject {
     func select(_ profile: AWSProfile) {
         selectedProfileName = profile.name
         selectedProfileCredentialStatus = .unchecked
-        commandService.copyExportCommand(for: profile)
-        statusMessage = "Copied AWS_PROFILE"
+        statusMessage = "Selected \(profile.shortTitle)"
         checkSelectedProfileCredentialStatus()
     }
 
