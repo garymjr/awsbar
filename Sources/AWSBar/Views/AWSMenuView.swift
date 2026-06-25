@@ -14,24 +14,6 @@ struct AWSMenuView: View {
 
         Divider()
 
-        Text("Current Account")
-            .font(.headline)
-            .disabled(true)
-
-        if let profile = store.selectedProfile {
-            Text(profile.shortTitle)
-                .disabled(true)
-
-            Text(currentAccountDetail(for: profile))
-                .disabled(true)
-
-            Text(store.credentialStatusTitle)
-                .disabled(true)
-        } else {
-            Text("None configured")
-                .disabled(true)
-        }
-
         Text(MenuTitle.shortened(store.statusMessage))
             .disabled(true)
 
@@ -62,14 +44,6 @@ struct AWSMenuView: View {
                     }
 
                     Button {
-                        store.select(profile)
-                    } label: {
-                        Label("Set Current", systemImage: "checkmark")
-                    }
-
-                    Divider()
-
-                    Button {
                         store.copyExport(for: profile)
                     } label: {
                         Label("Copy Export", systemImage: "doc.on.doc")
@@ -82,8 +56,7 @@ struct AWSMenuView: View {
                     }
                 } label: {
                     ProfileMenuLabel(
-                        profile: profile,
-                        isSelected: profile.name == store.selectedProfileName
+                        profile: profile
                     )
                 }
             }
@@ -144,13 +117,6 @@ struct AWSMenuView: View {
         }
     }
 
-    private func currentAccountDetail(for profile: AWSProfile) -> String {
-        let account = profile.accountID ?? "unknown account"
-        let role = profile.roleName ?? "SSO role"
-        let region = profile.region ?? "global"
-        return "\(account) / \(role) / \(region)"
-    }
-
     private func openAWSConfig() {
         let configURL = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".aws/config")
@@ -160,15 +126,10 @@ struct AWSMenuView: View {
 
 private struct ProfileMenuLabel: View {
     let profile: AWSProfile
-    let isSelected: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
-                Circle()
-                    .fill(isSelected ? Color.accentColor : Color.green)
-                    .frame(width: 8, height: 8)
-
                 Text(profile.shortTitle)
                     .font(.system(size: 14, weight: .semibold))
 
@@ -185,7 +146,6 @@ private struct ProfileMenuLabel: View {
                 MenuMetadata(systemImage: "person.text.rectangle", text: profile.roleName ?? "SSO role")
                 MenuMetadata(systemImage: "globe.americas", text: profile.region ?? "global")
             }
-            .padding(.leading, 16)
         }
         .frame(minWidth: 360, alignment: .leading)
         .padding(.vertical, 3)
