@@ -10,7 +10,6 @@ struct AWSCommandService {
         case invalidCredentialOutput
         case invalidDeviceLoginURL
         case missingAccessPortalURL
-        case missingSSORegion
         case processLaunchFailed
         case processTimedOut(String)
         case unsupportedAccessPortalURL
@@ -31,8 +30,6 @@ struct AWSCommandService {
                 return "Could not build AWS device login URL"
             case .missingAccessPortalURL:
                 return "Profile has no SSO access portal URL"
-            case .missingSSORegion:
-                return "Profile has no SSO region"
             case .processLaunchFailed:
                 return "Could not start aws sso login"
             case .processTimedOut(let command):
@@ -126,14 +123,21 @@ struct AWSCommandService {
     }
 
     func deviceLoginURL(for profile: AWSProfile) throws -> URL {
-        guard let ssoRegion = profile.ssoRegion, !ssoRegion.isEmpty else {
-            throw CommandError.missingSSORegion
+        guard
+            let ssoStartURL = profile.ssoStartURL,
+            var components = URLComponents(string: ssoStartURL)
+        else {
+            throw CommandError.missingAccessPortalURL
         }
 
-        var components = URLComponents()
-        components.scheme = "https"
-        components.host = "device.sso.\(ssoRegion).\(awsDomain(for: ssoRegion))"
-        components.path = "/"
+        guard components.scheme?.lowercased() == "https" else {
+            throw CommandError.unsupportedAccessPortalURL
+        }
+
+        if !components.path.hasSuffix("/") {
+            components.path += "/"
+        }
+        components.fragment = "/device"
 
         guard let url = components.url else {
             throw CommandError.invalidDeviceLoginURL
@@ -268,10 +272,6 @@ struct AWSCommandService {
         ]
 
         return components.url!
-    }
-
-    private func awsDomain(for region: String) -> String {
-        region.hasPrefix("cn-") ? "amazonaws.com.cn" : "amazonaws.com"
     }
 
     private func decodeCredentials(from data: Data) throws -> ProcessCredentials {

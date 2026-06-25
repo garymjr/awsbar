@@ -9,7 +9,6 @@ struct AWSProfile: Identifiable, Equatable {
     let region: String?
     let ssoSession: String?
     let ssoStartURL: String?
-    let ssoRegion: String?
 
     var shortTitle: String {
         MenuTitle.shortened(name)
