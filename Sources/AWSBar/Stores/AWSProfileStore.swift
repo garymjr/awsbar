@@ -122,6 +122,26 @@ final class AWSProfileStore: ObservableObject {
         }
     }
 
+    func openDeviceLogin() {
+        guard let profile = selectedProfile else {
+            statusMessage = "No SSO profiles"
+            return
+        }
+
+        openDeviceLogin(for: profile)
+    }
+
+    func openDeviceLogin(for profile: AWSProfile) {
+        do {
+            try commandService.openDeviceLogin(for: profile)
+            selectedProfileName = profile.name
+            statusMessage = "Opened device login"
+        } catch {
+            statusMessage = error.localizedDescription
+            showError(error.localizedDescription, title: "Could not open device login")
+        }
+    }
+
     func openConsole(for profile: AWSProfile) {
         selectedProfileName = profile.name
         statusMessage = "Opening console..."

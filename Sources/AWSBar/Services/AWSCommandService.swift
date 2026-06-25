@@ -8,7 +8,9 @@ struct AWSCommandService {
         case credentialsUnavailable(String)
         case invalidConsoleURL
         case invalidCredentialOutput
+        case invalidDeviceLoginURL
         case missingAccessPortalURL
+        case missingSSORegion
         case processLaunchFailed
         case processTimedOut(String)
         case unsupportedAccessPortalURL
@@ -25,8 +27,12 @@ struct AWSCommandService {
                 return "Could not build AWS console URL"
             case .invalidCredentialOutput:
                 return "AWS CLI returned invalid credentials"
+            case .invalidDeviceLoginURL:
+                return "Could not build AWS device login URL"
             case .missingAccessPortalURL:
                 return "Profile has no SSO access portal URL"
+            case .missingSSORegion:
+                return "Profile has no SSO region"
             case .processLaunchFailed:
                 return "Could not start aws sso login"
             case .processTimedOut(let command):
@@ -113,6 +119,27 @@ struct AWSCommandService {
         }
 
         _ = NSWorkspace.shared.open(url)
+    }
+
+    func openDeviceLogin(for profile: AWSProfile) throws {
+        _ = NSWorkspace.shared.open(try deviceLoginURL(for: profile))
+    }
+
+    func deviceLoginURL(for profile: AWSProfile) throws -> URL {
+        guard let ssoRegion = profile.ssoRegion, !ssoRegion.isEmpty else {
+            throw CommandError.missingSSORegion
+        }
+
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "device.sso.\(ssoRegion).\(awsDomain(for: ssoRegion))"
+        components.path = "/"
+
+        guard let url = components.url else {
+            throw CommandError.invalidDeviceLoginURL
+        }
+
+        return url
     }
 
     func openConsole(for profile: AWSProfile) async throws {
@@ -241,6 +268,10 @@ struct AWSCommandService {
         ]
 
         return components.url!
+    }
+
+    private func awsDomain(for region: String) -> String {
+        region.hasPrefix("cn-") ? "amazonaws.com.cn" : "amazonaws.com"
     }
 
     private func decodeCredentials(from data: Data) throws -> ProcessCredentials {

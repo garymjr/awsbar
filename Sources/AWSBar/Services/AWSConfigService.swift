@@ -59,7 +59,8 @@ struct AWSConfigService {
                 roleName: values["sso_role_name"],
                 region: values["region"] ?? values["sso_region"] ?? sessionValues["sso_region"],
                 ssoSession: values["sso_session"],
-                ssoStartURL: values["sso_start_url"] ?? sessionValues["sso_start_url"] ?? sessionValues["start_url"]
+                ssoStartURL: values["sso_start_url"] ?? sessionValues["sso_start_url"] ?? sessionValues["start_url"],
+                ssoRegion: values["sso_region"] ?? sessionValues["sso_region"]
             )
         }
         .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }

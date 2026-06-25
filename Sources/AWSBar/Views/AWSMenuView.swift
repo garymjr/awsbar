@@ -12,6 +12,13 @@ struct AWSMenuView: View {
         }
         .disabled(store.profiles.isEmpty)
 
+        Button {
+            store.openDeviceLogin()
+        } label: {
+            Label("Open Device Login", systemImage: "key.viewfinder")
+        }
+        .disabled(store.profiles.isEmpty)
+
         Divider()
 
         Text(MenuTitle.shortened(store.statusMessage))
@@ -35,6 +42,12 @@ struct AWSMenuView: View {
                         store.openConsole(for: profile)
                     } label: {
                         Label("Open Console", systemImage: "rectangle.on.rectangle")
+                    }
+
+                    Button {
+                        store.openDeviceLogin(for: profile)
+                    } label: {
+                        Label("Open Device Login", systemImage: "key.viewfinder")
                     }
 
                     Button {

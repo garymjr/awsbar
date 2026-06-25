@@ -25,6 +25,7 @@ struct AWSConfigServiceTests {
         #expect(profiles.first?.roleName == "AdministratorAccess")
         #expect(profiles.first?.region == "us-west-2")
         #expect(profiles.first?.ssoStartURL == "https://example.awsapps.com/start")
+        #expect(profiles.first?.ssoRegion == "us-east-1")
     }
 
     @Test func loadProfilesUsesSessionRegionWhenProfileRegionIsMissing() {
@@ -42,6 +43,7 @@ struct AWSConfigServiceTests {
         let profiles = AWSConfigService().loadProfiles(from: contents)
 
         #expect(profiles.first?.region == "us-east-2")
+        #expect(profiles.first?.ssoRegion == "us-east-2")
     }
 
     @Test func loadProfilesSortsByProfileName() {
